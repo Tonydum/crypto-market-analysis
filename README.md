@@ -28,7 +28,7 @@ The main goal of this project is to:
 ### Running the Project
 1. Clone this repository:
     ```bash
-    git clone https://github.com/yourusername/cryptocurrency-data-analysis.git
+    git clone https://github.com/tonydum/crypto-market-analysis.git
     ```
 2. Install required Python packages:
     ```bash
