@@ -1,0 +1,117 @@
+import requests
+import pyodbc
+from datetime import datetime
+
+# Fetch data from CoinMarketCap API
+def get_coinmarketcap_data(api_key):
+    """
+    Fetches the latest cryptocurrency data from CoinMarketCap API.
+    Args:
+        api_key (str): API key for authentication.
+    Returns:
+        list of dict: List of dictionaries containing data for each cryptocurrency.
+    """
+    
+    # API URL for fetching latest cryptocurrency listings
+    url = "https://pro-api.coinmarketcap.com/v1/cryptocurrency/listings/latest"
+    
+    # Headers to include the API key for authentication
+    headers = {
+        'Accepts': 'application/json',
+        'X-CMC_PRO_API_KEY': api_key,
+    }
+    
+    # Parameters for the API request to specify:
+    # - 'start': Starting rank of cryptocurrency listings
+    # - 'limit': Limit of top cryptocurrencies to fetch
+    # - 'convert': Convert prices to USD
+    params = {
+        'start': '1',  
+        'limit': '50',  
+        'convert': 'USD'  
+    }
+
+    # Make the request to CoinMarketCap API
+    response = requests.get(url, headers=headers, params=params)
+    
+    # Check if request was successful (status code 200)
+    if response.status_code != 200:
+        print(f"Error fetching data: {response.status_code}")
+        return []
+
+    # Parse the JSON response to extract cryptocurrency data
+    data = response.json()
+    price_data = []
+    
+    # Loop through each cryptocurrency in the response data
+    for coin in data['data']:
+        # Append relevant information to price_data list as dictionaries
+        price_data.append({
+            'timestamp': datetime.utcnow(),  # Current timestamp for each entry
+            'symbol': coin['symbol'],  # Cryptocurrency symbol (e.g., BTC)
+            'name': coin['name'],  # Cryptocurrency name (e.g., Bitcoin)
+            'price': coin['quote']['USD']['price'],  # Price in USD
+            'market_cap': coin['quote']['USD']['market_cap'],  # Market capitalization in USD
+            'volume_24h': coin['quote']['USD']['volume_24h'],  # 24-hour trading volume in USD
+            'percent_change_1h': coin['quote']['USD'].get('percent_change_1h', 0),  # 1-hour price change %
+            'percent_change_24h': coin['quote']['USD'].get('percent_change_24h', 0),  # 24-hour price change %
+            'percent_change_7d': coin['quote']['USD'].get('percent_change_7d', 0),  # 7-day price change %
+            'circulating_supply': coin.get('circulating_supply', 0)  # Circulating supply of the cryptocurrency
+        })
+    
+    return price_data  # Return list of cryptocurrency data
+
+# Connect to SQL Server and insert data
+def store_data_in_sqlserver(price_data):
+    """
+    Stores the cryptocurrency data into SQL Server.
+    Args:
+        price_data (list of dict): List of cryptocurrency data dictionaries.
+    """
+    
+    # Define connection string to SQL Server
+    conn_str = 'DRIVER={SQL Server};SERVER=<YourServerName>;DATABASE=<Yourdatabase>Name;Trusted_Connection=yes;'
+
+    # Establish connection to SQL Server database
+    conn = pyodbc.connect(conn_str)
+    cursor = conn.cursor()
+
+    # SQL query to insert data into CoinMarketData table
+    insert_query = """
+        INSERT INTO CoinMarketData (timestamp, symbol, name, price, market_cap, volume_24h, percent_change_1h, percent_change_24h, percent_change_7d, circulating_supply)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    """
+    
+    # Execute insertion of each cryptocurrency's data
+    for record in price_data:
+        cursor.execute(insert_query, (
+            record['timestamp'],
+            record['symbol'],
+            record['name'],
+            record['price'],
+            record['market_cap'],
+            record['volume_24h'],
+            record['percent_change_1h'],
+            record['percent_change_24h'],
+            record['percent_change_7d'],
+            record['circulating_supply']
+        ))
+
+    # Commit the transaction to make changes permanent
+    conn.commit()
+    
+    # Close the cursor and connection to SQL Server
+    cursor.close()
+    conn.close()
+
+# Main script execution
+if __name__ == "__main__":
+    api_key = "***********************" # Type your CoinMarketCap API Key here
+    
+    # Fetch data from CoinMarketCap API
+    crypto_prices = get_coinmarketcap_data(api_key)
+    
+    # If data was fetched successfully, store it in SQL Server
+    if crypto_prices:
+        store_data_in_sqlserver(crypto_prices)
+        print("Data stored successfully!")
